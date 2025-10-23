@@ -108,7 +108,10 @@ echo "Admin Password: $ADMIN_PASSWORD"\n\
 echo "======================================"\n\
 echo ""\n\
 \n\
-bench serve --port 8000 \n\
+
+# Use gunicorn directly to bind to 0.0.0.0\n\
+cd /home/frappe/frappe-bench/sites\n\
+gunicorn -b 0.0.0.0:8000 --workers 2 --worker-class gthread --threads 4 --timeout 120 --graceful-timeout 30 frappe.app:application --access-logfile - --error-logfile -\n\
 ' > /home/frappe/start.sh && chmod +x /home/frappe/start.sh
 
 # Set environment defaults
