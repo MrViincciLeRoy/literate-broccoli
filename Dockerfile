@@ -1,3 +1,4 @@
+#dockerfile
 FROM frappe/erpnext:v15.20.0
 
 # Switch to root to install dependencies and configure MariaDB
@@ -43,7 +44,7 @@ for i in {1..30}; do\n\
   sleep 2\n\
 done\n\
 \n\
-# Set MariaDB root password (try both with and without current password)\n\
+# Set MariaDB root password\n\
 echo "Configuring MariaDB root password..."\n\
 sudo mysql -e "ALTER USER '\''root'\''@'\''localhost'\'' IDENTIFIED BY '\''${DB_ROOT_PASSWORD}'\'';" 2>/dev/null || \\\n\
 sudo mysqladmin -u root password "${DB_ROOT_PASSWORD}" 2>/dev/null || \\\n\
@@ -108,10 +109,7 @@ echo "Admin Password: $ADMIN_PASSWORD"\n\
 echo "======================================"\n\
 echo ""\n\
 \n\
-
-# Use gunicorn directly to bind to 0.0.0.0\n\
-cd /home/frappe/frappe-bench/sites\n\
-gunicorn -b 0.0.0.0:8000 --workers 2 --worker-class gthread --threads 4 --timeout 120 --graceful-timeout 30 frappe.app:application --access-logfile - --error-logfile -\n\
+bench serve --port 8000 --noreload --nothreading\n\
 ' > /home/frappe/start.sh && chmod +x /home/frappe/start.sh
 
 # Set environment defaults
