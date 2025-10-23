@@ -1,4 +1,3 @@
-#dockerfile
 FROM frappe/erpnext:v15.20.0
 
 # Switch to root to install dependencies and configure MariaDB
@@ -52,6 +51,29 @@ echo "Password already set or error occurred"\n\
 \n\
 sudo mysql -u root -p"${DB_ROOT_PASSWORD}" -e "FLUSH PRIVILEGES;" 2>/dev/null || true\n\
 \n\
+# Start Redis with proper configuration for Frappe\n\
+echo "Starting Redis services..."\n\
+sudo mkdir -p /var/run/redis\n\
+sudo chown redis:redis /var/run/redis\n\
+\n\
+# Start Redis Cache (port 13000)\n\
+sudo redis-server --daemonize yes --bind 127.0.0.1 --port 13000 --pidfile /var/run/redis/redis_cache.pid --maxmemory 256mb --maxmemory-policy allkeys-lru\n\
+\n\
+# Start Redis Queue (port 11311)\n\
+sudo redis-server --daemonize yes --bind 127.0.0.1 --port 11311 --pidfile /var/run/redis/redis_queue.pid\n\
+\n\
+# Start Redis Socketio (port 12311)\n\
+sudo redis-server --daemonize yes --bind 127.0.0.1 --port 12311 --pidfile /var/run/redis/redis_socketio.pid\n\
+\n\
+# Wait for Redis services to start\n\
+echo "Waiting for Redis services to start..."\n\
+sleep 3\n\
+\n\
+# Verify Redis connections\n\
+redis-cli -p 13000 ping && echo "Redis Cache ready on port 13000"\n\
+redis-cli -p 11311 ping && echo "Redis Queue ready on port 11311"\n\
+redis-cli -p 12311 ping && echo "Redis Socketio ready on port 12311"\n\
+\n\
 # Determine site name\n\
 if [ -n "$RAILWAY_PUBLIC_DOMAIN" ]; then\n\
   SITE_NAME="$RAILWAY_PUBLIC_DOMAIN"\n\
@@ -83,13 +105,6 @@ fi\n\
 \n\
 # Set current site\n\
 echo $SITE_NAME > sites/currentsite.txt\n\
-\n\
-# Start Redis\n\
-echo "Starting Redis..."\n\
-sudo service redis-server start || redis-server --daemonize yes --bind 127.0.0.1 || echo "Redis already running"\n\
-\n\
-# Wait for Redis\n\
-sleep 2\n\
 \n\
 # Start background workers\n\
 echo "Starting background workers..."\n\
