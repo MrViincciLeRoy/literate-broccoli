@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  mariadb:
+    image: mariadb:10.6
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-admin123}
+      MYSQL_DATABASE: erpnext
+      MYSQL_USER: erpnext
+      MYSQL_PASSWORD: ${DB_PASSWORD:-erpnext123}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --max-allowed-packet=256M
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_ROOT_PASSWORD:-admin123}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  erpnext:
+    build: .
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      SITE_NAME: ${RAILWAY_PUBLIC_DOMAIN:-localhost}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      DB_HOST: mariadb
+      DB_PORT: 3306
+      DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-admin123}
+      FRAPPE_SITE_NAME_HEADER: ${RAILWAY_PUBLIC_DOMAIN:-localhost}
+    volumes:
+      - erpnext_data:/home/frappe/frappe-bench/sites
+
+volumes:
+  mariadb_data:
+  erpnext_data:
