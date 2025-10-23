@@ -1,4 +1,4 @@
-#dockerfile
+
 FROM frappe/erpnext:v15.20.0
 
 # Switch to root to install dependencies and configure MariaDB
@@ -52,8 +52,12 @@ echo "Password already set or error occurred"\n\
 \n\
 sudo mysql -u root -p"${DB_ROOT_PASSWORD}" -e "FLUSH PRIVILEGES;" 2>/dev/null || true\n\
 \n\
-# Determine site name\n\
-if [ -n "$RAILWAY_PUBLIC_DOMAIN" ]; then\n\
+# Determine site name - use PUBLIC_URL or RAILWAY_STATIC_URL for public domain\n\
+if [ -n "$RAILWAY_STATIC_URL" ]; then\n\
+  # Remove https:// prefix if present\n\
+  SITE_NAME="${RAILWAY_STATIC_URL#https://}"\n\
+  SITE_NAME="${SITE_NAME#http://}"\n\
+elif [ -n "$RAILWAY_PUBLIC_DOMAIN" ] && [[ "$RAILWAY_PUBLIC_DOMAIN" != *".internal"* ]]; then\n\
   SITE_NAME="$RAILWAY_PUBLIC_DOMAIN"\n\
 else\n\
   SITE_NAME="localhost"\n\
@@ -81,8 +85,8 @@ else\n\
   echo "Site already exists: $SITE_NAME"\n\
 fi\n\
 \n\
-# Set current site\n\
-echo $SITE_NAME > sites/currentsite.txt\n\
+# Set current site using bench use command\n\
+bench use $SITE_NAME\n\
 \n\
 # Start Redis\n\
 echo "Starting Redis..."\n\
@@ -109,7 +113,9 @@ echo "Admin Password: $ADMIN_PASSWORD"\n\
 echo "======================================"\n\
 echo ""\n\
 \n\
-bench serve --port 8000 --noreload --nothreading\n\
+# Use gunicorn directly to bind to 0.0.0.0\n\
+cd /home/frappe/frappe-bench/sites\n\
+gunicorn -b 0.0.0.0:8000 --workers 2 --worker-class gthread --threads 4 --timeout 120 --graceful-timeout 30 frappe.app:application --access-logfile - --error-logfile -\n\
 ' > /home/frappe/start.sh && chmod +x /home/frappe/start.sh
 
 # Set environment defaults
