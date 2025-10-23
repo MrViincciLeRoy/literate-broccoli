@@ -5,10 +5,10 @@ USER root
 
 # Install required packages
 RUN apt-get update && \
-    apt-get install -y netcat-openbsd sudo mariadb-server && \
+    apt-get install -y netcat-openbsd sudo mariadb-server redis-server && \
     rm -rf /var/lib/apt/lists/*
 
-# Configure MariaDB
+# Configure MariaDB to allow root login without password initially
 RUN mkdir -p /var/run/mysqld && \
     chown -R mysql:mysql /var/run/mysqld && \
     chmod 777 /var/run/mysqld
@@ -35,7 +35,7 @@ sudo service mariadb start\n\
 # Wait for MariaDB to be ready\n\
 echo "Waiting for MariaDB to start..."\n\
 for i in {1..30}; do\n\
-  if sudo mysqladmin ping -h localhost --silent; then\n\
+  if sudo mysqladmin ping -h localhost --silent 2>/dev/null; then\n\
     echo "MariaDB is ready!"\n\
     break\n\
   fi\n\
@@ -43,10 +43,13 @@ for i in {1..30}; do\n\
   sleep 2\n\
 done\n\
 \n\
-# Set MariaDB root password\n\
-echo "Configuring MariaDB..."\n\
-sudo mysql -e "ALTER USER '\''root'\''@'\''localhost'\'' IDENTIFIED BY '\''${DB_ROOT_PASSWORD}'\'';" || true\n\
-sudo mysql -e "FLUSH PRIVILEGES;" || true\n\
+# Set MariaDB root password (try both with and without current password)\n\
+echo "Configuring MariaDB root password..."\n\
+sudo mysql -e "ALTER USER '\''root'\''@'\''localhost'\'' IDENTIFIED BY '\''${DB_ROOT_PASSWORD}'\'';" 2>/dev/null || \\\n\
+sudo mysqladmin -u root password "${DB_ROOT_PASSWORD}" 2>/dev/null || \\\n\
+echo "Password already set or error occurred"\n\
+\n\
+sudo mysql -u root -p"${DB_ROOT_PASSWORD}" -e "FLUSH PRIVILEGES;" 2>/dev/null || true\n\
 \n\
 # Determine site name\n\
 if [ -n "$RAILWAY_PUBLIC_DOMAIN" ]; then\n\
@@ -63,7 +66,8 @@ if [ ! -d "sites/$SITE_NAME" ]; then\n\
   bench new-site $SITE_NAME \\\n\
     --mariadb-root-password="${DB_ROOT_PASSWORD}" \\\n\
     --admin-password="${ADMIN_PASSWORD}" \\\n\
-    --no-mariadb-socket\n\
+    --no-mariadb-socket \\\n\
+    --verbose\n\
   \n\
   echo "Installing ERPNext app..."\n\
   bench --site $SITE_NAME install-app erpnext\n\
@@ -81,12 +85,18 @@ echo $SITE_NAME > sites/currentsite.txt\n\
 \n\
 # Start Redis\n\
 echo "Starting Redis..."\n\
-redis-server --daemonize yes --bind 127.0.0.1\n\
+sudo service redis-server start || redis-server --daemonize yes --bind 127.0.0.1 || echo "Redis already running"\n\
+\n\
+# Wait for Redis\n\
+sleep 2\n\
 \n\
 # Start background workers\n\
 echo "Starting background workers..."\n\
-bench worker --queue short,default,long > /dev/null 2>&1 &\n\
-bench schedule > /dev/null 2>&1 &\n\
+bench worker --queue short,default,long > /tmp/worker.log 2>&1 &\n\
+bench schedule > /tmp/schedule.log 2>&1 &\n\
+\n\
+# Give workers time to start\n\
+sleep 2\n\
 \n\
 # Start web server\n\
 echo ""\n\
