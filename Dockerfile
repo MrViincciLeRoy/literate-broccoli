@@ -108,7 +108,7 @@ echo "Admin Password: $ADMIN_PASSWORD"\n\
 echo "======================================"\n\
 echo ""\n\
 \n\
-bench serve --port 8000 --host 0.0.0.0\n\
+bench serve --port 8000 \n\
 ' > /home/frappe/start.sh && chmod +x /home/frappe/start.sh
 
 # Set environment defaults
